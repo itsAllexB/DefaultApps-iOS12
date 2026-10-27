@@ -1,29 +1,42 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 itsAllexB
 
-// DefaultBrowser 2.0.0 (successor of FirefoxDefault 1.0.0)
-// Sends http/https links that other apps hand to Safari to the browser picked in Settings.
+// DefaultApps 3.0.1 (successor of DefaultBrowser 2.0.1 and FirefoxDefault 1.0.0)
+// Pick the default browser, mail app and maps app on iOS 12, like iOS 14's default apps.
 //
-// Hook point (SpringBoard, iOS 12), unchanged from FirefoxDefault:
+// Hook point (SpringBoard, iOS 12):
 //   -[SBMainWorkspace systemService:handleOpenApplicationRequest:withCompletion:]
-// Every "open this URL" from an app (UIApplication openURL:, links, data detectors, ...) is
-// resolved by LaunchServices in the calling process and arrives here as an
-// FBSystemServiceOpenApplicationRequest (bundleIdentifier + options["__PayloadURL"]).
-// Universal links were already resolved to their own app, so only requests aimed at Safari change.
+// Every "open this URL" from an app (UIApplication openURL:, links, data detector actions,
+// LSApplicationWorkspace openURL:...) is resolved by LaunchServices in the calling process and
+// reaches SpringBoard here as an FBSystemServiceOpenApplicationRequest: bundleIdentifier is the app
+// LaunchServices picked and options["__PayloadURL"] is the URL. We change both before %orig runs:
+//   - http/https aimed at Safari               -> chosen browser
+//   - mailto: aimed at Mail (com.apple.mobilemail) -> chosen mail app's compose URL
+//   - maps:/map:/maps.apple.com aimed at Maps (or at Safari, when Maps is deleted) -> chosen maps app
+// Mail links that never leave the app (the in-app "New Message" sheet of data detectors) are
+// handled by DefaultAppsUI (UITweak.x), which turns them into a normal mailto: open first.
 
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 #import <dlfcn.h>
-#import "DBBrowsers.h"
+#import <notify.h>
+#import "DAApps.h"
 
-#define kDBDomain CFSTR("com.itsallexb.defaultbrowser")
-#define kDBNotification "com.itsallexb.defaultbrowser/prefschanged"
+#define kDADomainCF CFSTR(kDADomain)
+#define kDAOldDomainCF CFSTR(kDAOldDomain)
 
-static NSString *const kDBSafariBundleID = @"com.apple.mobilesafari";
-static NSString *const kDBSafariViewServiceBundleID = @"com.apple.SafariViewService";
+static NSString *const kDASafari = @"com.apple.mobilesafari";
+static NSString *const kDASafariViewService = @"com.apple.SafariViewService";
+static NSString *const kDAMail = @"com.apple.mobilemail";
+static NSString *const kDAMaps = @"com.apple.Maps";
+static NSString *const kDAFirefox = @"org.mozilla.ios.Firefox";
 
 static BOOL gEnabled = YES;
-static NSString *gBrowserID = @"org.mozilla.ios.Firefox";
+static BOOL gDebug = NO;
+static NSString *gBrowser = @"apple";
+static NSString *gMail = @"apple";
+static NSString *gMaps = @"apple";
+static int gStateToken = -1;
 
 @interface FBSOpenApplicationOptions : NSObject
 + (id)optionsWithDictionary:(NSDictionary *)dictionary;
@@ -42,18 +55,86 @@ static NSString *gBrowserID = @"org.mozilla.ios.Firefox";
 - (void)setOptions:(FBSOpenApplicationOptions *)options;
 @end
 
-static void DBLoadPrefs(void) {
-    CFPreferencesAppSynchronize(kDBDomain);
-    CFPropertyListRef en = CFPreferencesCopyAppValue(CFSTR("enabled"), kDBDomain);
-    CFPropertyListRef br = CFPreferencesCopyAppValue(CFSTR("browser"), kDBDomain);
-    gEnabled = en ? [(__bridge id)en boolValue] : YES;
-    NSString *bid = br ? [(__bridge id)br copy] : nil;
-    gBrowserID = ([bid isKindOfClass:[NSString class]] && DBBrowserForBundleID(bid)) ? bid : @"org.mozilla.ios.Firefox";
-    if (en) CFRelease(en);
-    if (br) CFRelease(br);
+// ---- Preferences -----------------------------------------------------------------------------
+
+static id DACopy(CFStringRef key, CFStringRef domain) {
+    CFPropertyListRef v = CFPreferencesCopyAppValue(key, domain);
+    return v ? (__bridge_transfer id)v : nil;
 }
 
-static NSString *DBPayloadURLKey(void) {
+static NSString *DAString(id v) { return [v isKindOfClass:[NSString class]] ? v : nil; }
+
+// First run after installing: copy DefaultBrowser's choice (it used the defaults enabled = YES,
+// browser = Firefox when its plist had no value), and start mail and maps on the Apple apps.
+static void DAMigrate(void) {
+    CFPreferencesAppSynchronize(kDADomainCF);
+    if (DACopy(CFSTR("migrated"), kDADomainCF)) return;
+    CFPreferencesAppSynchronize(kDAOldDomainCF);
+    id oldEnabled = DACopy(CFSTR("enabled"), kDAOldDomainCF);
+    NSString *oldBrowser = DAString(DACopy(CFSTR("browser"), kDAOldDomainCF));
+    BOOL marker = [[NSFileManager defaultManager] fileExistsAtPath:kDAMigrationMarker];
+    BOOL fromOld = marker || oldEnabled || oldBrowser;
+
+    NSString *browser = kDAApple;
+    if (fromOld) browser = DABrowserForID(oldBrowser) ? oldBrowser : kDAFirefox;
+    BOOL enabled = [oldEnabled respondsToSelector:@selector(boolValue)] ? [oldEnabled boolValue] : YES;
+
+    // Only fill keys the user has not set yet (Settings may have been opened before the respring).
+    if (!DACopy(CFSTR("enabled"), kDADomainCF))
+        CFPreferencesSetAppValue(CFSTR("enabled"), enabled ? kCFBooleanTrue : kCFBooleanFalse, kDADomainCF);
+    if (!DACopy(CFSTR("browser"), kDADomainCF))
+        CFPreferencesSetAppValue(CFSTR("browser"), (__bridge CFStringRef)browser, kDADomainCF);
+    if (!DACopy(CFSTR("mail"), kDADomainCF))
+        CFPreferencesSetAppValue(CFSTR("mail"), (__bridge CFStringRef)kDAApple, kDADomainCF);
+    if (!DACopy(CFSTR("maps"), kDADomainCF))
+        CFPreferencesSetAppValue(CFSTR("maps"), (__bridge CFStringRef)kDAApple, kDADomainCF);
+    CFPreferencesSetAppValue(CFSTR("migrated"), fromOld ? CFSTR("defaultbrowser") : CFSTR("fresh"), kDADomainCF);
+    CFPreferencesAppSynchronize(kDADomainCF);
+    if (marker) [[NSFileManager defaultManager] removeItemAtPath:kDAMigrationMarker error:NULL];
+    NSLog(@"[DefaultApps] settings initialised (%@): enabled=%d browser=%@ mail=apple maps=apple",
+          fromOld ? @"from DefaultBrowser" : @"fresh install", enabled, browser);
+}
+
+static void DAUpdateState(void) {
+    // Read by DefaultAppsUI inside apps (sandboxed apps cannot read our plist, but can read a
+    // notify state): bits 0-7 = 1 + index of the active mail app, 0 when mail stays with Apple Mail.
+    uint64_t state = 0;
+    if (gEnabled) {
+        const DAMailApp *mail = DAMailForID(gMail);
+        if (mail && DAMailUsable(mail)) state |= (uint64_t)(mail - kDAMailApps + 1);
+        const DAMapsApp *maps = DAMapsForID(gMaps);
+        if (maps && DAMapsUsable(maps)) state |= (uint64_t)(maps - kDAMapsApps + 1) << 8;
+    }
+    if (gStateToken < 0 && notify_register_check(kDAStateNotification, &gStateToken) != NOTIFY_STATUS_OK) {
+        gStateToken = -1;
+        return;
+    }
+    uint64_t old = 0;
+    notify_get_state(gStateToken, &old);
+    if (old != state) {
+        notify_set_state(gStateToken, state);
+        notify_post(kDAStateNotification);
+    }
+}
+
+static void DALoadPrefs(void) {
+    CFPreferencesAppSynchronize(kDADomainCF);
+    id en = DACopy(CFSTR("enabled"), kDADomainCF);
+    gEnabled = [en respondsToSelector:@selector(boolValue)] ? [en boolValue] : YES;
+    id dbg = DACopy(CFSTR("debug"), kDADomainCF);
+    gDebug = [dbg respondsToSelector:@selector(boolValue)] ? [dbg boolValue] : NO;
+    NSString *b = DAString(DACopy(CFSTR("browser"), kDADomainCF));
+    NSString *m = DAString(DACopy(CFSTR("mail"), kDADomainCF));
+    NSString *p = DAString(DACopy(CFSTR("maps"), kDADomainCF));
+    gBrowser = DABrowserForID(b) ? [b copy] : kDAApple;
+    gMail = DAMailForID(m) ? [m copy] : kDAApple;
+    gMaps = DAMapsForID(p) ? [p copy] : kDAApple;
+    DAUpdateState();
+}
+
+// ---- Redirect --------------------------------------------------------------------------------
+
+static NSString *DAPayloadURLKey(void) {
     static NSString *key = nil;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
@@ -64,50 +145,54 @@ static NSString *DBPayloadURLKey(void) {
     return key;
 }
 
-static NSString *DBPercentEncode(NSString *string) {
-    static NSCharacterSet *unreserved = nil;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        // RFC 3986 unreserved characters only (explicit ASCII).
-        unreserved = [NSCharacterSet characterSetWithCharactersInString:
-            @"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"];
-    });
-    return [string stringByAddingPercentEncodingWithAllowedCharacters:unreserved];
+static BOOL DAIsBrowserClient(NSString *client) {
+    if (![client isKindOfClass:[NSString class]]) return NO;
+    if ([client hasPrefix:kDASafari] || [client isEqualToString:kDASafariViewService]) return YES;
+    // Any known browser (and its extensions) asking for Safari did so on purpose ("Open in Safari").
+    for (size_t i = 0; i < kDABrowserCount; i++)
+        if ([client hasPrefix:@(kDABrowsers[i].bundleID)]) return YES;
+    return NO;
 }
 
-static NSURL *DBBrowserURL(const DBBrowser *b, NSURL *url) {
-    NSString *absolute = url.absoluteString;
-    if (absolute.length == 0) return nil;
+// Works out the new target for a request. Returns nil to leave it alone.
+static NSURL *DARewrite(NSString *target, NSString *client, NSURL *url, NSString **newTarget) {
     NSString *scheme = url.scheme.lowercaseString;
-    switch (b->style) {
-        case DBStyleOpenURL: {
-            NSString *enc = DBPercentEncode(absolute);
-            if (enc.length == 0) return nil;
-            return [NSURL URLWithString:[NSString stringWithFormat:@"%s://open-url?url=%@", b->scheme, enc]];
+
+    // Mail: mailto: that LaunchServices gave to Apple Mail.
+    if ([scheme isEqualToString:@"mailto"]) {
+        if (![target isEqualToString:kDAMail] || [gMail isEqualToString:kDAApple]) return nil;
+        const DAMailApp *app = DAMailForID(gMail);
+        if (!app || [client hasPrefix:@(app->bundleID)] || [client hasPrefix:kDAMail]) return nil;
+        if (!DAMailUsable(app)) return nil;
+        NSURL *u = DAMailComposeURL(app->kind, DAParseMailto(url));
+        if (u) *newTarget = @(app->bundleID);
+        return u;
+    }
+
+    // Maps: Apple Maps links that go to Apple Maps (or to Safari when Apple Maps is deleted).
+    if (DAIsAppleMapsURL(url) && ([target isEqualToString:kDAMaps] || [target isEqualToString:kDASafari])
+        && ![gMaps isEqualToString:kDAApple]) {
+        const DAMapsApp *app = DAMapsForID(gMaps);
+        if (app && ![client hasPrefix:@(app->bundleID)] && ![client hasPrefix:kDAMaps] && DAMapsUsable(app)) {
+            NSURL *u = DAMapsURL(app->kind, DAParseAppleMaps(url));
+            if (u) { *newTarget = @(app->bundleID); return u; }
         }
-        case DBStyleReplace: {
-            NSRange r = [absolute rangeOfString:@":"];
-            if (r.location == NSNotFound) return nil;
-            const char *newScheme = [scheme isEqualToString:@"https"] ? b->secureScheme : b->scheme;
-            return [NSURL URLWithString:[@(newScheme) stringByAppendingString:[absolute substringFromIndex:r.location]]];
-        }
-        case DBStylePrefix:
-            return [NSURL URLWithString:[NSString stringWithFormat:@"%s://%@", b->scheme, absolute]];
+        // Not translatable: fall through, so a maps.apple.com link aimed at Safari still follows the browser choice.
+    }
+
+    // Browser: http/https aimed at Safari.
+    if (([scheme isEqualToString:@"http"] || [scheme isEqualToString:@"https"]) && [target isEqualToString:kDASafari]
+        && ![gBrowser isEqualToString:kDAApple] && !DAIsBrowserClient(client)) {
+        const DABrowser *b = DABrowserForID(gBrowser);
+        if (!DABrowserUsable(b)) return nil; // not installed / offloaded / scheme missing: keep Safari
+        NSURL *u = DABrowserURL(b->style, @(b->scheme), b->secureScheme ? @(b->secureScheme) : nil, url);
+        if (u) *newTarget = @(b->bundleID);
+        return u;
     }
     return nil;
 }
 
-static BOOL DBIsExcludedClient(NSString *client) {
-    if (![client isKindOfClass:[NSString class]]) return NO;
-    if ([client hasPrefix:kDBSafariBundleID] || [client isEqualToString:kDBSafariViewServiceBundleID]) return YES;
-    // Any known browser (and its extensions) asking for Safari did so on purpose ("Open in Safari").
-    for (size_t i = 0; i < kDBBrowserCount; i++)
-        if ([client hasPrefix:@(kDBBrowsers[i].bundleID)]) return YES;
-    return NO;
-}
-
-static void DBMaybeRedirect(FBSystemServiceOpenApplicationRequest *request) {
-    if (!gEnabled) return;
+static void DAMaybeRedirect(FBSystemServiceOpenApplicationRequest *request) {
     FBSOpenApplicationOptions *originalOptions = nil;
     NSString *originalTarget = nil;
     BOOL mutated = NO;
@@ -119,30 +204,29 @@ static void DBMaybeRedirect(FBSystemServiceOpenApplicationRequest *request) {
             || ![request respondsToSelector:@selector(setOptions:)]) return;
 
         NSString *target = [request bundleIdentifier];
-        if (![target isKindOfClass:[NSString class]] || ![target isEqualToString:kDBSafariBundleID]) return;
+        if (![target isKindOfClass:[NSString class]]) return;
 
+        NSString *client = nil;
         if ([request respondsToSelector:@selector(clientProcess)]) {
-            FBProcess *client = [request clientProcess];
-            if (client && [client respondsToSelector:@selector(bundleIdentifier)]
-                && DBIsExcludedClient([client bundleIdentifier])) return;
+            FBProcess *p = [request clientProcess];
+            if (p && [p respondsToSelector:@selector(bundleIdentifier)]) client = [p bundleIdentifier];
         }
+        if (![client isKindOfClass:[NSString class]]) client = @"";
 
         FBSOpenApplicationOptions *options = [request options];
         if (!options || ![options respondsToSelector:@selector(dictionary)]) return;
         NSDictionary *dict = [options dictionary];
         if (![dict isKindOfClass:[NSDictionary class]]) return;
-
-        NSString *key = DBPayloadURLKey();
+        NSString *key = DAPayloadURLKey();
         NSURL *url = dict[key];
         if (![url isKindOfClass:[NSURL class]]) return;
-        NSString *scheme = url.scheme.lowercaseString;
-        if (!([scheme isEqualToString:@"http"] || [scheme isEqualToString:@"https"])) return;
 
-        const DBBrowser *browser = DBBrowserForBundleID(gBrowserID);
-        if (!DBBrowserUsable(browser)) return; // not installed / offloaded / scheme missing: keep Safari
+        if (gDebug) NSLog(@"[DefaultApps] open request client=%@ target=%@ url=%@", client, target, url);
+        if (!gEnabled) return;
 
-        NSURL *newURL = DBBrowserURL(browser, url);
-        if (!newURL) return;
+        NSString *newTarget = nil;
+        NSURL *newURL = DARewrite(target, client, url, &newTarget);
+        if (!newURL || !newTarget) return;
 
         Class optionsClass = objc_getClass("FBSOpenApplicationOptions");
         if (!optionsClass || ![optionsClass respondsToSelector:@selector(optionsWithDictionary:)]) return;
@@ -155,9 +239,11 @@ static void DBMaybeRedirect(FBSystemServiceOpenApplicationRequest *request) {
         originalTarget = target;
         mutated = YES;
         [request setOptions:newOptions];
-        [request setBundleIdentifier:@(browser->bundleID)];
+        [request setBundleIdentifier:newTarget];
+        NSLog(@"[DefaultApps] %@ link from %@ for %@ -> %@", url.scheme, client, target, newTarget);
+        if (gDebug) NSLog(@"[DefaultApps] rewritten url=%@", newURL);
     } @catch (NSException *e) {
-        NSLog(@"[DefaultBrowser] exception, leaving request unchanged: %@", e);
+        NSLog(@"[DefaultApps] exception, leaving request unchanged: %@", e);
         if (mutated) {
             @try {
                 [request setOptions:originalOptions];
@@ -167,19 +253,23 @@ static void DBMaybeRedirect(FBSystemServiceOpenApplicationRequest *request) {
     }
 }
 
-%group DBHooks
+%group DAHooks
 
 %hook SBMainWorkspace
 - (void)systemService:(id)service handleOpenApplicationRequest:(id)request withCompletion:(id)completion {
-    DBMaybeRedirect(request);
+    DAMaybeRedirect(request);
     %orig;
 }
 %end
 
 %end
 
-static void DBPrefsChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
-    DBLoadPrefs();
+static void DAPrefsChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
+    DALoadPrefs();
+}
+
+static void DAAppsChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
+    dispatch_async(dispatch_get_main_queue(), ^{ DAUpdateState(); });
 }
 
 %ctor {
@@ -187,12 +277,18 @@ static void DBPrefsChanged(CFNotificationCenterRef center, void *observer, CFStr
         Class cls = objc_getClass("SBMainWorkspace");
         SEL sel = @selector(systemService:handleOpenApplicationRequest:withCompletion:);
         if (!cls || ![cls instancesRespondToSelector:sel]) {
-            NSLog(@"[DefaultBrowser] SBMainWorkspace handler not found; not hooking");
+            NSLog(@"[DefaultApps] SBMainWorkspace handler not found; not hooking");
             return;
         }
-        DBLoadPrefs();
-        %init(DBHooks);
-        CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, DBPrefsChanged,
-            CFSTR(kDBNotification), NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
+        DAMigrate();
+        DALoadPrefs();
+        %init(DAHooks);
+        CFNotificationCenterRef darwin = CFNotificationCenterGetDarwinNotifyCenter();
+        CFNotificationCenterAddObserver(darwin, NULL, DAPrefsChanged, CFSTR(kDANotification), NULL,
+                                        CFNotificationSuspensionBehaviorDeliverImmediately);
+        CFNotificationCenterAddObserver(darwin, NULL, DAAppsChanged, CFSTR("com.apple.mobile.application_installed"), NULL,
+                                        CFNotificationSuspensionBehaviorDeliverImmediately);
+        CFNotificationCenterAddObserver(darwin, NULL, DAAppsChanged, CFSTR("com.apple.mobile.application_uninstalled"), NULL,
+                                        CFNotificationSuspensionBehaviorDeliverImmediately);
     }
 }

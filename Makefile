@@ -7,9 +7,13 @@ FINALPACKAGE = 1
 
 include $(THEOS)/makefiles/common.mk
 
-TWEAK_NAME = DefaultBrowser
-DefaultBrowser_FILES = Tweak.x
-DefaultBrowser_CFLAGS = -fobjc-arc
+TWEAK_NAME = DefaultApps DefaultAppsUI
+
+DefaultApps_FILES = Tweak.x DAURL.m
+DefaultApps_CFLAGS = -fobjc-arc
+
+DefaultAppsUI_FILES = UITweak.x
+DefaultAppsUI_CFLAGS = -fobjc-arc
 
 include $(THEOS_MAKE_PATH)/tweak.mk
 

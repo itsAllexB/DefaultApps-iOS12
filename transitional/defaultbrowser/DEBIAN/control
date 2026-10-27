@@ -1,0 +1,9 @@
+Package: com.itsallexb.defaultbrowser
+Name: DefaultBrowser (iOS 12)
+Version: 2.0.2
+Architecture: iphoneos-arm
+Description: DefaultBrowser is now DefaultApps (iOS 12), which also lets you choose the mail and maps apps. This empty package installs DefaultApps, which keeps your browser choice. You can remove it afterwards.
+Maintainer: itsAllexB
+Author: itsAllexB
+Section: Tweaks
+Depends: com.itsallexb.defaultapps (>= 3.0.1), firmware (>= 12.0), firmware (<< 13.0)

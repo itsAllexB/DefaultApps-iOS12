@@ -1,0 +1,10 @@
+{
+	entry = {
+		bundle = DefaultAppsPrefs;
+		cell = PSLinkCell;
+		detail = DARootListController;
+		icon = icon.png;
+		isController = 1;
+		label = "Default Apps";
+	};
+}

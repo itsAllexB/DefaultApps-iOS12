@@ -1,0 +1,6 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+if [ "$1" = purge ]; then
+    rm -rf /var/mobile/Library/DefaultApps
+fi
+exit 0
