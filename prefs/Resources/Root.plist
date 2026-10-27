@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>title</key><string>Default Browser</string>
+	<key>items</key>
+	<array>
+		<dict>
+			<key>cell</key><string>PSGroupCell</string>
+			<key>footerText</key><string>Web links opened from other apps go to the browser below instead of Safari. Safari still opens normally from its icon, and "Open in Safari" in a browser is respected. If the chosen browser is not installed, links keep opening in Safari.</string>
+		</dict>
+		<dict>
+			<key>cell</key><string>PSSwitchCell</string>
+			<key>default</key><true/>
+			<key>defaults</key><string>com.itsallexb.defaultbrowser</string>
+			<key>key</key><string>enabled</string>
+			<key>label</key><string>Enabled</string>
+			<key>PostNotification</key><string>com.itsallexb.defaultbrowser/prefschanged</string>
+		</dict>
+		<dict>
+			<key>cell</key><string>PSGroupCell</string>
+			<key>id</key><string>browserGroup</string>
+		</dict>
+		<dict>
+			<key>cell</key><string>PSLinkListCell</string>
+			<key>detail</key><string>PSListItemsController</string>
+			<key>default</key><string>org.mozilla.ios.Firefox</string>
+			<key>defaults</key><string>com.itsallexb.defaultbrowser</string>
+			<key>key</key><string>browser</string>
+			<key>id</key><string>browser</string>
+			<key>label</key><string>Browser</string>
+			<key>PostNotification</key><string>com.itsallexb.defaultbrowser/prefschanged</string>
+		</dict>
+	</array>
+</dict>
+</plist>

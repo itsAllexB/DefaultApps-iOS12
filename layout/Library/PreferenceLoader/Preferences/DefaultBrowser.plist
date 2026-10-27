@@ -1,0 +1,10 @@
+{
+	entry = {
+		bundle = DefaultBrowserPrefs;
+		cell = PSLinkCell;
+		detail = DBRootListController;
+		icon = icon.png;
+		isController = 1;
+		label = "Default Browser";
+	};
+}
