@@ -1,3 +1,5 @@
+<img src="icon.png" alt="DefaultBrowser icon" width="96" align="left">
+
 # DefaultBrowser (iOS 12)
 
 **Open web links in the browser you choose instead of Safari.**
