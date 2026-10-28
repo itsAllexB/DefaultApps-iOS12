@@ -1,13 +1,9 @@
 Package: com.itsallexb.defaultapps
 Name: DefaultApps (iOS 12)
-Version: 3.0.1
+Version: 3.1.0
 Architecture: iphoneos-arm
-Description: Choose your default browser, mail app and maps app on iOS 12, like iOS 14. Web links open in Firefox, Chrome, Brave, DuckDuckGo and more; mailto: links open in Gmail, Outlook, Spark, Yahoo Mail, Proton Mail and more; Apple Maps links open in Google Maps, Waze and more. Only installed apps are offered. Settings > Default Apps. Replaces DefaultBrowser.
+Description: Choose your default browser, mail app and maps app on iOS 12, like iOS 14. Web links open in Firefox, Chrome, Brave, DuckDuckGo and more; mailto: links open in Gmail, Outlook, Spark, Yahoo Mail, Proton Mail and more; Apple Maps links open in Google Maps, Waze and more. Only installed apps are offered. Settings > Default Apps.
 Maintainer: itsAllexB
 Author: itsAllexB
 Section: Tweaks
 Depends: mobilesubstrate, firmware (>= 12.0), firmware (<< 13.0), preferenceloader
-Replaces: com.itsallexb.defaultbrowser (<< 2.0.2), com.itsallexb.firefoxdefault
-Breaks: com.itsallexb.defaultbrowser (<< 2.0.2)
-Conflicts: com.itsallexb.firefoxdefault
-Provides: com.itsallexb.firefoxdefault

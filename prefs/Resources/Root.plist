@@ -8,7 +8,7 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>footerText</key>
-			<string>Choose which app opens web links, email links and map links from other apps, like Default Apps on iOS 14. "Default (Apple)" keeps Safari, Mail or Maps. If a chosen app is removed, links go back to the Apple app.</string>
+			<string>Choose which app opens web links, email links and map links from other apps, like Default Apps on iOS 14. If a chosen app is removed, links go back to Safari, Mail or Maps.</string>
 		</dict>
 		<dict>
 			<key>PostNotification</key>
@@ -42,7 +42,7 @@
 			<key>defaults</key>
 			<string>com.itsallexb.defaultapps</string>
 			<key>detail</key>
-			<string>PSListItemsController</string>
+			<string>DAListItemsController</string>
 			<key>id</key>
 			<string>browser</string>
 			<key>key</key>
@@ -68,7 +68,7 @@
 			<key>defaults</key>
 			<string>com.itsallexb.defaultapps</string>
 			<key>detail</key>
-			<string>PSListItemsController</string>
+			<string>DAListItemsController</string>
 			<key>id</key>
 			<string>mail</string>
 			<key>key</key>
@@ -94,7 +94,7 @@
 			<key>defaults</key>
 			<string>com.itsallexb.defaultapps</string>
 			<key>detail</key>
-			<string>PSListItemsController</string>
+			<string>DAListItemsController</string>
 			<key>id</key>
 			<string>maps</string>
 			<key>key</key>

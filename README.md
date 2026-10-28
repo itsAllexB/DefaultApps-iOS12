@@ -6,8 +6,6 @@
 
 On iOS 12, web links always open in Safari, email links in Mail and map links in Maps. DefaultApps lets you pick other apps for all three in Settings. Links that other apps open (Notes, Messages, Mail, Firefox and so on) then go to the apps you chose.
 
-DefaultApps is the successor of DefaultBrowser (and of FirefoxDefault before it), and this repository used to be DefaultBrowser-iOS12. Installing it replaces DefaultBrowser and keeps your browser choice.
-
 This is an unofficial jailbreak tweak. It is not affiliated with or endorsed by Apple.
 
 ## Screenshots
@@ -16,9 +14,9 @@ Settings > Default Apps:
 
 <img src="screenshots/settings.png" alt="Default Apps settings page" width="450">
 
-Each list shows only the apps that are installed:
+Each list shows the Apple app and the supported apps that are installed, with their icons:
 
-<img src="screenshots/maps-picker.png" alt="Maps picker with Default (Apple) and Google Maps" width="450">
+<img src="screenshots/maps-picker.png" alt="Maps picker with Maps and Google Maps, each with its icon" width="450">
 
 An Apple Maps link tapped in Notes, opened in Google Maps at the same spot, and an Apple Maps transit route opened in Google Maps:
 
@@ -35,7 +33,7 @@ What a mail app receives for `mailto:to@example.com?cc=...&bcc=...&subject=Hello
 - **Browser**: http and https links that would open in Safari open in the browser you pick.
 - **Mail**: `mailto:` links open a new message in the mail app you pick, with To, Cc, Bcc, Subject and Body filled in. This includes email addresses and mail links tapped in Notes, Messages and other text, which iOS 12 would otherwise show as a Mail sheet inside the app.
 - **Maps**: Apple Maps links (`maps:`, `map:` and `maps.apple.com`) open in the maps app you pick, at the same place, search or route.
-- Each list only shows apps that are installed, plus **Default (Apple)**, which leaves that kind of link unchanged.
+- Each list shows the Apple app (Safari, Mail or Maps), which leaves that kind of link unchanged, and the supported apps that are installed, each with its icon.
 - If a chosen app is removed, or a link cannot be expressed in its format, the link opens in the Apple app as before.
 - Safari, Mail and Maps still open normally from their icons. "Open in Safari" inside another browser still works, and a mail or maps app that asks for the Apple app gets the Apple app.
 - On/off switch. Changes apply right away, no respring needed.
@@ -106,13 +104,9 @@ One tap on your device: [Add to Sileo](https://itsallexb.github.io/ios-legacy/ad
 
 Or download the `.deb` from [Releases](https://github.com/itsAllexB/DefaultApps-iOS12/releases/latest) and install it with Filza or `dpkg -i`, then respring.
 
-It replaces DefaultBrowser automatically. Requires `mobilesubstrate` (Substrate, Substitute or libhooker) and PreferenceLoader. Your package manager installs them automatically.
+Requires `mobilesubstrate` (Substrate, Substitute or libhooker) and PreferenceLoader. Your package manager installs them automatically.
 
-### Upgrading from DefaultBrowser
-
-If you installed DefaultBrowser from the iOS Legacy source, you don't need to do anything: its last version (2.0.2) is an empty package that installs DefaultApps when you upgrade. You can remove DefaultBrowser afterwards; DefaultApps stays. Its source is in [`transitional/`](transitional/).
-
-The first time SpringBoard loads DefaultApps, it copies DefaultBrowser's settings (Enabled and the browser) into DefaultApps, and sets Mail and Maps to **Default (Apple)**, so nothing changes until you pick a mail or maps app. On a fresh install all three start on Default (Apple).
+On a fresh install, Browser, Mail and Maps start on Safari, Mail and Maps, so nothing changes until you pick another app.
 
 ## Settings
 

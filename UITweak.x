@@ -9,7 +9,7 @@
 // SpringBoard never sees a request. When a mail app is chosen we report interactionType 0 instead;
 // DDActionController then calls -performFromView:, which DDSendMailAction implements as
 // -[DDAction _performFromView:byOpeningURL:] with its mailto: URL. That URL goes to SpringBoard,
-// where the main tweak sends it to the chosen app. With "Default (Apple)" nothing changes.
+// where the main tweak sends it to the chosen app. With Mail chosen nothing changes.
 //
 // The choice comes from the notify state "com.itsallexb.defaultapps/state", published by the
 // SpringBoard tweak (sandboxed apps cannot read its preferences file).

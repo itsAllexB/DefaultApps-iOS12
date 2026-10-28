@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 itsAllexB
 
-// DefaultApps 3.0.1 (successor of DefaultBrowser 2.0.1 and FirefoxDefault 1.0.0)
+// DefaultApps 3.1.0
 // Pick the default browser, mail app and maps app on iOS 12, like iOS 14's default apps.
 //
 // Hook point (SpringBoard, iOS 12):
@@ -23,13 +23,11 @@
 #import "DAApps.h"
 
 #define kDADomainCF CFSTR(kDADomain)
-#define kDAOldDomainCF CFSTR(kDAOldDomain)
 
 static NSString *const kDASafari = @"com.apple.mobilesafari";
 static NSString *const kDASafariViewService = @"com.apple.SafariViewService";
 static NSString *const kDAMail = @"com.apple.mobilemail";
 static NSString *const kDAMaps = @"com.apple.Maps";
-static NSString *const kDAFirefox = @"org.mozilla.ios.Firefox";
 
 static BOOL gEnabled = YES;
 static BOOL gDebug = NO;
@@ -63,37 +61,6 @@ static id DACopy(CFStringRef key, CFStringRef domain) {
 }
 
 static NSString *DAString(id v) { return [v isKindOfClass:[NSString class]] ? v : nil; }
-
-// First run after installing: copy DefaultBrowser's choice (it used the defaults enabled = YES,
-// browser = Firefox when its plist had no value), and start mail and maps on the Apple apps.
-static void DAMigrate(void) {
-    CFPreferencesAppSynchronize(kDADomainCF);
-    if (DACopy(CFSTR("migrated"), kDADomainCF)) return;
-    CFPreferencesAppSynchronize(kDAOldDomainCF);
-    id oldEnabled = DACopy(CFSTR("enabled"), kDAOldDomainCF);
-    NSString *oldBrowser = DAString(DACopy(CFSTR("browser"), kDAOldDomainCF));
-    BOOL marker = [[NSFileManager defaultManager] fileExistsAtPath:kDAMigrationMarker];
-    BOOL fromOld = marker || oldEnabled || oldBrowser;
-
-    NSString *browser = kDAApple;
-    if (fromOld) browser = DABrowserForID(oldBrowser) ? oldBrowser : kDAFirefox;
-    BOOL enabled = [oldEnabled respondsToSelector:@selector(boolValue)] ? [oldEnabled boolValue] : YES;
-
-    // Only fill keys the user has not set yet (Settings may have been opened before the respring).
-    if (!DACopy(CFSTR("enabled"), kDADomainCF))
-        CFPreferencesSetAppValue(CFSTR("enabled"), enabled ? kCFBooleanTrue : kCFBooleanFalse, kDADomainCF);
-    if (!DACopy(CFSTR("browser"), kDADomainCF))
-        CFPreferencesSetAppValue(CFSTR("browser"), (__bridge CFStringRef)browser, kDADomainCF);
-    if (!DACopy(CFSTR("mail"), kDADomainCF))
-        CFPreferencesSetAppValue(CFSTR("mail"), (__bridge CFStringRef)kDAApple, kDADomainCF);
-    if (!DACopy(CFSTR("maps"), kDADomainCF))
-        CFPreferencesSetAppValue(CFSTR("maps"), (__bridge CFStringRef)kDAApple, kDADomainCF);
-    CFPreferencesSetAppValue(CFSTR("migrated"), fromOld ? CFSTR("defaultbrowser") : CFSTR("fresh"), kDADomainCF);
-    CFPreferencesAppSynchronize(kDADomainCF);
-    if (marker) [[NSFileManager defaultManager] removeItemAtPath:kDAMigrationMarker error:NULL];
-    NSLog(@"[DefaultApps] settings initialised (%@): enabled=%d browser=%@ mail=apple maps=apple",
-          fromOld ? @"from DefaultBrowser" : @"fresh install", enabled, browser);
-}
 
 static void DAUpdateState(void) {
     // Read by DefaultAppsUI inside apps (sandboxed apps cannot read our plist, but can read a
@@ -280,7 +247,6 @@ static void DAAppsChanged(CFNotificationCenterRef center, void *observer, CFStri
             NSLog(@"[DefaultApps] SBMainWorkspace handler not found; not hooking");
             return;
         }
-        DAMigrate();
         DALoadPrefs();
         %init(DAHooks);
         CFNotificationCenterRef darwin = CFNotificationCenterGetDarwinNotifyCenter();

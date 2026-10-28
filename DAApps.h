@@ -6,8 +6,8 @@
 // really declares the URL scheme we send it, so a wrong or changed bundle id simply hides the row.
 //
 // Sources (checked 2026-10-27):
-//   Browsers - see DefaultBrowser 2.0 (firefox-ios NavigationRouter, focus-ios NavigationPath,
-//              brave-ios Base.xcconfig, chromium docs/ios/opening_links.md, duckduckgo AppDeepLinkSchemes);
+//   Browsers - firefox-ios NavigationRouter, focus-ios NavigationPath, brave-ios Base.xcconfig,
+//              chromium docs/ios/opening_links.md, duckduckgo AppDeepLinkSchemes;
 //              Edge and Opera are community-documented only.
 //   Mail     - firefox-ios Client/Frontend/Browser/MailProviders.swift (v36.0, the iOS 12 era release,
 //              and current main for ProtonMail) and MailProvidersTests.swift.
@@ -24,9 +24,7 @@
 #define kDADomain              "com.itsallexb.defaultapps"
 #define kDANotification        "com.itsallexb.defaultapps/prefschanged"
 #define kDAStateNotification   "com.itsallexb.defaultapps/state"
-#define kDAOldDomain           "com.itsallexb.defaultbrowser"
 #define kDAApple               @"apple"
-#define kDAMigrationMarker     @"/var/mobile/Library/DefaultApps/from-defaultbrowser"
 
 typedef struct {
     const char *bundleID;
